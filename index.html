@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кулінарний Асистент</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="КулАсистент">
+    <meta name="theme-color" content="#f97316">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* --- Анімації модальних вікон --- */
+        .modal-container {
+            position: absolute;
+            inset: 0;
+            z-index: 50;
+            visibility: hidden;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            transition: visibility 300ms;
+        }
+        .modal-container.active {
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        .modal-overlay {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transition: opacity 300ms ease-in-out;
+        }
+        .modal-container.active .modal-overlay {
+            opacity: 1;
+        }
+
+        .modal-content-slide-up {
+            margin-top: auto;
+            transition: transform 300ms ease-out;
+            transform: translateY(100%);
+            pointer-events: auto;
+        }
+        .modal-container.active .modal-content-slide-up {
+            transform: translateY(0);
+        }
+
+        .modal-content-slide-left {
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 75%;
+            max-width: 320px;
+            background-color: #ffffff;
+            transition: transform 300ms ease-in-out;
+            transform: translateX(-100%);
+            pointer-events: auto;
+            z-index: 70;
+        }
+        
+        .modal-container.active .modal-content-slide-left {
+            transform: translateX(0);
+        }
+
+        .modal-content-slide-right {
+            position: absolute;
+            top: 0; right: 0; bottom: 0; left: 0;
+            background-color: #f8fafc;
+            transition: transform 300ms ease-in-out;
+            transform: translateX(100%);
+            pointer-events: auto;
+            z-index: 60;
+        }
+        .modal-container.active .modal-content-slide-right {
+            transform: translateX(0);
+        }
+        
+        /* Анімація появи елементів */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in-item { animation: fadeIn 0.5s ease-out forwards; opacity: 0; }
+        
+        /* Анімація райдужного тексту */
+        @keyframes rainbow-flow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .rainbow-text {
+            background: linear-gradient(90deg, #ef4444, #f97316, #eab308, #84cc16, #22c55e, #14b8a6, #06b6d4, #3b82f6, #8b5cf6, #d946ef);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: rainbow-flow 2s ease-in-out infinite;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #3b82f6;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Стилі для заголовка, що ховається */
+        .hiding-header {
+            transition: transform 0.3s ease-in-out;
+        }
+        .hiding-header.hidden-header {
+            transform: translateY(-120%);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 flex items-center justify-center min-h-screen p-4">
+
+    <!-- Мобільний контейнер -->
+    <div class="w-full max-w-sm h-[85vh] max-h-[850px] bg-white rounded-[40px] shadow-2xl flex flex-col overflow-hidden relative border-8 border-gray-800">
+        
+        <!-- Іконка профілю -->
+        <div class="absolute top-4 right-4 z-20">
+            <button id="profile-icon" class="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center shadow-md hover:bg-gray-300 transition-colors">
+                <i class="fa-solid fa-user text-gray-600 text-xl"></i>
+            </button>
+        </div>
+        
+        <main class="flex-grow overflow-y-auto no-scrollbar" id="main-content">
+            <!-- Вкладка 1: Рецепти -->
+            <div id="tab-recipes" class="p-6 h-full flex flex-col justify-center items-center text-center">
+                <i class="fa-solid fa-utensils text-7xl text-blue-500 mb-6 mt-16"></i>
+                <h1 data-translate-key="main_title" class="text-3xl font-bold text-gray-800 mb-2">Що на вечерю?</h1>
+                <p data-translate-key="main_subtitle" class="text-gray-600 mb-8 px-4">Введіть продукти, які у вас є, і ШІ запропонує найкращі рецепти.</p>
+                <button id="scan-button" data-translate-key="main_button" class="w-full max-w-xs bg-blue-500 text-white font-semibold py-3 px-6 rounded-xl shadow-md hover:bg-blue-600 active:bg-blue-700 transition-all duration-150">Ввести інгредієнти</button>
+            </div>
+
+            <!-- Вкладка 2: План харчування -->
+            <div id="tab-plan" class="hidden bg-gray-50 h-full flex flex-col">
+                <div class="p-4 shrink-0">
+                    <h1 data-translate-key="plan_title" class="text-2xl font-bold text-gray-800 px-4 pt-12">План на тиждень</h1>
+                    <div class="px-4 mt-4">
+                        <label for="diet-prefs" data-translate-key="plan_prefs" class="text-sm font-medium text-gray-700">Ваші побажання:</label>
+                        <input type="text" id="diet-prefs" data-translate-key-placeholder="plan_placeholder" class="w-full border-gray-300 rounded-lg shadow-sm mt-1 focus:border-blue-500 focus:ring-blue-500" placeholder="напр., веганський, для схуднення">
+                    </div>
+                    <div class="px-4 mt-4">
+                        <button id="generate-plan-btn" class="w-full bg-blue-500 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-600 transition">
+                            <span data-translate-key="plan_generate_button">✨ Згенерувати план</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-grow overflow-y-auto no-scrollbar">
+                    <div id="meal-plan-content" class="p-4 space-y-3">
+                        <p data-translate-key="plan_prompt" class="text-gray-500 text-center py-8">Введіть побажання та натисніть "Згенерувати".</p>
+                    </div>
+                    <div id="create-shopping-list-container" class="px-4 mt-4 pb-4 hidden">
+                         <button id="create-shopping-list-btn" class="w-full bg-green-500 text-white font-semibold py-3 rounded-xl shadow-md hover:bg-green-600 transition-colors">
+                            <span data-translate-key="plan_create_shopping_list">🛒 Створити список покупок</span>
+                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Вкладка 3: Список покупок -->
+            <div id="tab-shopping" class="hidden bg-gray-50 h-full flex flex-col">
+                 <div class="p-4 shrink-0">
+                    <h1 data-translate-key="shopping_title" class="text-2xl font-bold text-gray-800 px-4 pt-12">Список покупок</h1>
+                 </div>
+                 <div id="shopping-list-container" class="flex-grow px-4 pb-4 space-y-4 overflow-y-auto no-scrollbar">
+                    <p id="shopping-list-placeholder" data-translate-key="shopping_placeholder" class="text-gray-500 text-center py-8">Список покупок порожній. Створіть його з плану харчування.</p>
+                 </div>
+            </div>
+        </main>
+
+        <!-- Нижня панель навігації -->
+        <nav class="w-full bg-gray-100 border-t border-gray-200 flex justify-around">
+             <button data-tab="recipes" class="tab-button flex-1 py-3 px-2 text-center text-blue-500"><i class="fa-solid fa-utensils text-xl"></i><span data-translate-key="tab_recipes" class="block text-xs font-medium">Рецепти</span></button>
+             <button data-tab="plan" class="tab-button flex-1 py-3 px-2 text-center text-gray-500"><i class="fa-solid fa-calendar-days text-xl"></i><span data-translate-key="tab_plan" class="block text-xs font-medium">План</span></button>
+             <button data-tab="shopping" class="tab-button flex-1 py-3 px-2 text-center text-gray-500"><i class="fa-solid fa-cart-shopping text-xl"></i><span data-translate-key="tab_shopping" class="block text-xs font-medium">Покупки</span></button>
+        </nav>
+
+        <!-- Модальне вікно для ІНГРЕДІЄНТІВ -->
+        <div id="modal-ingredients" class="modal-container">
+            <div class="modal-overlay" id="close-ingredients-modal-overlay"></div>
+            <div id="modal-ingredients-content" class="modal-content-slide-up w-full max-w-sm bg-gray-50 rounded-t-3xl p-4 overflow-y-auto no-scrollbar max-h-[75vh]">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 data-translate-key="find_recipes_title" class="text-xl font-bold text-gray-800">Знайти рецепти</h2>
+                    <button id="close-ingredients-modal-button" class="text-gray-500 hover:text-gray-800"><i class="fa-solid fa-xmark text-2xl"></i></button>
+                </div>
+                <div>
+                    <label for="ingredients-input" data-translate-key="find_recipes_label" class="block text-sm font-medium text-gray-700 mb-2">Введіть інгредієнти через кому:</label>
+                    <textarea id="ingredients-input" data-translate-key-placeholder="find_recipes_placeholder" rows="3" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Наприклад: курка, картопля, цибуля, морква"></textarea>
+                    <div class="flex items-center justify-between mt-4 bg-white p-3 rounded-lg shadow-sm">
+                        <div class="text-sm font-medium text-gray-700 select-none">
+                            <p data-translate-key="strict_mode_title">Суворий режим</p>
+                            <p data-translate-key="strict_mode_desc" class="text-xs text-gray-500">Використовувати тільки вказані продукти.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="strict-mode-toggle" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 peer-focus:ring-2 peer-focus:ring-blue-300 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all after:duration-300 after:ease-in-out peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                        </label>
+                    </div>
+                    <button id="find-recipes-btn" class="mt-4 w-full bg-blue-500 text-white font-semibold py-3 rounded-xl shadow-md hover:bg-blue-600 transition-colors">
+                        <span data-translate-key="find_recipes_button">✨ Знайти рецепти</span>
+                    </button>
+                </div>
+                <div id="recipes-result-container" class="mt-4 space-y-3"></div>
+            </div>
+        </div>
+
+        <!-- Універсальне модальне вікно для деталей -->
+        <div id="modal-detail-view" class="modal-container">
+             <div id="modal-detail-content" class="modal-content-slide-right p-6 overflow-y-auto no-scrollbar"></div>
+        </div>
+        
+        <!-- Модальне вікно для акаунту -->
+        <div id="modal-account" class="modal-container">
+            <div class="modal-overlay" id="close-account-modal-overlay"></div>
+            <div id="modal-account-content" class="modal-content-slide-left flex flex-col p-6">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 data-translate-key="account_title" class="text-2xl font-bold text-gray-800">Акаунт</h2>
+                    <button id="close-account-modal-button" class="text-gray-400 hover:text-gray-700"><i class="fa-solid fa-xmark text-2xl"></i></button>
+                </div>
+                <div class="flex items-center space-x-4 mb-8">
+                    <img src="https://placehold.co/64x64/e0e7ff/4f46e5?text=A" class="w-16 h-16 rounded-full" alt="Аватар">
+                    <div>
+                        <h3 class="font-semibold text-lg">Анатолій</h3>
+                        <p class="text-sm text-gray-500">example@email.com</p>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <button id="my-account-btn" class="w-full flex items-center space-x-3 p-4 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                        <i class="fa-solid fa-user-pen text-gray-600 w-5 text-center"></i>
+                        <span data-translate-key="account_my_account" class="font-medium text-gray-700">Мій акаунт</span>
+                    </button>
+                     <button id="settings-btn" class="w-full flex items-center space-x-3 p-4 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                        <i class="fa-solid fa-gear text-gray-600 w-5 text-center"></i>
+                        <span data-translate-key="account_settings" class="font-medium text-gray-700">Налаштування</span>
+                    </button>
+                </div>
+                <div class="mt-auto pt-8">
+                    <button class="w-full flex items-center space-x-3 p-4 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">
+                        <i class="fa-solid fa-arrow-right-from-bracket text-red-500 w-5 text-center"></i>
+                        <span data-translate-key="account_logout" class="font-medium text-red-600">Вийти</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Модальне вікно для доп. інформації (КБЖВ, Варіації) -->
+        <div id="modal-info" class="modal-container">
+            <div class="modal-overlay" id="close-info-modal-overlay"></div>
+            <div id="modal-info-content" class="modal-content-slide-up w-full max-w-sm bg-gray-50 rounded-t-3xl p-4 overflow-y-auto no-scrollbar max-h-[60vh]"></div>
+        </div>
+    </div>
+
+<script>
+    // --- DOM Elements & State ---
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabs = { recipes: document.getElementById('tab-recipes'), plan: document.getElementById('tab-plan'), shopping: document.getElementById('tab-shopping') };
+    const modalIngredients = document.getElementById('modal-ingredients');
+    const modalIngredientsContent = document.getElementById('modal-ingredients-content');
+    const closeIngredientsModalBtn = document.getElementById('close-ingredients-modal-button');
+    const closeModalIngredientsOverlay = document.getElementById('close-ingredients-modal-overlay');
+    const modalDetail = document.getElementById('modal-detail-view');
+    const modalDetailContent = document.getElementById('modal-detail-content');
+    const modalInfo = document.getElementById('modal-info');
+    const modalInfoContent = document.getElementById('modal-info-content');
+    const modalAccount = document.getElementById('modal-account');
+    const modalAccountContent = document.getElementById('modal-account-content');
+    const scanButton = document.getElementById('scan-button');
+    const ingredientsInput = document.getElementById('ingredients-input');
+    const findRecipesBtn = document.getElementById('find-recipes-btn');
+    const recipesResultContainer = document.getElementById('recipes-result-container');
+    const strictModeToggle = document.getElementById('strict-mode-toggle');
+    const generatePlanBtn = document.getElementById('generate-plan-btn');
+    const dietPrefsInput = document.getElementById('diet-prefs');
+    const mealPlanContent = document.getElementById('meal-plan-content');
+    const createShoppingListBtnContainer = document.getElementById('create-shopping-list-container');
+    const createShoppingListBtn = document.getElementById('create-shopping-list-btn');
+    const shoppingListContainer = document.getElementById('shopping-list-container');
+    const shoppingListPlaceholder = document.getElementById('shopping-list-placeholder');
+    const profileIcon = document.getElementById('profile-icon');
+    
+    let currentMealPlanAndShoppingList = {};
+    let typingAbortController;
+    let lastScrollTop = 0;
+    let currentLanguage = 'uk';
+    
+    // --- API Configuration ---
+    const API_KEY = "AIzaSyBzaPKEtzzMex8hXmLMxceBxgTs0w8DQw8"; // Provided by the environment
+    const TEXT_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+    const IMAGE_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${API_KEY}`;
+    
+    // --- Internationalization (i18n) ---
+    const translations = {
+        uk: {
+            main_title: "Що на вечерю?", main_subtitle: "Введіть продукти, які у вас є, і ШІ запропонує найкращі рецепти.", main_button: "Ввести інгредієнти",
+            tab_recipes: "Рецепти", tab_plan: "План", tab_shopping: "Покупки",
+            find_recipes_title: "Знайти рецепти", find_recipes_label: "Введіть інгредієнти через кому:", find_recipes_placeholder: "Наприклад: курка, картопля, цибуля, морква",
+            strict_mode_title: "Суворий режим", strict_mode_desc: "Використовувати тільки вказані продукти.", find_recipes_button: "✨ Знайти рецепти",
+            plan_title: "План на тиждень", plan_prefs: "Ваші побажання:", plan_placeholder: "напр., веганський, для схуднення", plan_generate_button: "✨ Згенерувати план",
+            plan_prompt: 'Введіть побажання та натисніть "Згенерувати".', plan_create_shopping_list: "🛒 Створити список покупок",
+            shopping_title: "Список покупок", shopping_placeholder: "Список покупок порожній. Створіть його з плану харчування.",
+            account_title: "Акаунт", account_my_account: "Мій акаунт", account_settings: "Налаштування", account_logout: "Вийти",
+            days: { Monday: "Понеділок", Tuesday: "Вівторок", Wednesday: "Середа", Thursday: "Четвер", Friday: "П'ятниця", Saturday: "Субота", Sunday: "Неділя" },
+            meals: { "Сніданок": "Сніданок", "Обід": "Обід", "Вечеря": "Вечеря" },
+            short_meals: { "Сніданок": "С", "Обід": "О", "Вечеря": "В" },
+            recipe_button: "Рецепт", nutrition_title: "Поживна цінність", calories: "Калорії", protein: "Білки", fats: "Жири", carbs: "Вуглеводи",
+            nutrition_error: "Не вдалося розрахувати КБЖВ.", variation_title: "Варіації рецепту", variation_error: "Не вдалося згенерувати варіації.",
+            recipe_error: "Помилка обробки рецепта.", ingredients_title: "Інгредієнти", instructions_title: "Інструкції",
+            calc_nutrition: "Розрахувати КБЖВ", vary_recipe: "Урізноманітнити"
+        },
+        en: {
+            main_title: "What's for dinner?", main_subtitle: "Enter the products you have, and AI will suggest the best recipes.", main_button: "Enter ingredients",
+            tab_recipes: "Recipes", tab_plan: "Plan", tab_shopping: "Shopping",
+            find_recipes_title: "Find Recipes", find_recipes_label: "Enter ingredients, separated by commas:", find_recipes_placeholder: "e.g., chicken, potatoes, onions, carrots",
+            strict_mode_title: "Strict Mode", strict_mode_desc: "Use only the specified products.", find_recipes_button: "✨ Find Recipes",
+            plan_title: "Weekly Plan", plan_prefs: "Your preferences:", plan_placeholder: "e.g., vegan, gluten-free, for weight loss", plan_generate_button: "✨ Generate Plan",
+            plan_prompt: 'Enter your preferences and click "Generate".', plan_create_shopping_list: "🛒 Create Shopping List",
+            shopping_title: "Shopping List", shopping_placeholder: "The shopping list is empty. Create it from the meal plan.",
+            account_title: "Account", account_my_account: "My Account", account_settings: "Settings", account_logout: "Log Out",
+            days: { Monday: "Monday", Tuesday: "Tuesday", Wednesday: "Wednesday", Thursday: "Thursday", Friday: "Friday", Saturday: "Saturday", Sunday: "Sunday" },
+            meals: { "Сніданок": "Breakfast", "Обід": "Lunch", "Вечеря": "Dinner" },
+            short_meals: { "Сніданок": "B", "Обід": "L", "Вечеря": "D" },
+            recipe_button: "Recipe", nutrition_title: "Nutritional Value", calories: "Calories", protein: "Protein", fats: "Fats", carbs: "Carbs",
+            nutrition_error: "Could not calculate nutritional value.", variation_title: "Recipe Variations", variation_error: "Could not generate variations.",
+            recipe_error: "Error processing recipe.", ingredients_title: "Ingredients", instructions_title: "Instructions",
+            calc_nutrition: "Calculate Nutrition", vary_recipe: "Vary Recipe"
+        },
+        pl: {
+            main_title: "Co na obiad?", main_subtitle: "Wpisz produkty, które masz, a AI zaproponuje najlepsze przepisy.", main_button: "Wprowadź składniki",
+            tab_recipes: "Przepisy", tab_plan: "Plan", tab_shopping: "Zakupy",
+            find_recipes_title: "Znajdź przepisy", find_recipes_label: "Wprowadź składniki, oddzielając je przecinkami:", find_recipes_placeholder: "np. kurczak, ziemniaki, cebula, marchew",
+            strict_mode_title: "Tryb ścisły", strict_mode_desc: "Używaj tylko podanych produktów.", find_recipes_button: "✨ Znajdź przepisy",
+            plan_title: "Plan tygodniowy", plan_prefs: "Twoje preferencje:", plan_placeholder: "np. wegański, bezglutenowy, na odchudzanie",
+            plan_generate_button: "✨ Wygeneruj plan", plan_prompt: 'Wprowadź swoje preferencje i kliknij "Wygeneruj".', plan_create_shopping_list: "🛒 Utwórz listę zakupów",
+            shopping_title: "Lista zakupów", shopping_placeholder: "Lista zakupów jest pusta. Utwórz ją z planu posiłków.",
+            account_title: "Konto", account_my_account: "Moje konto", account_settings: "Ustawienia", account_logout: "Wyloguj się",
+            days: { Monday: "Poniedziałek", Tuesday: "Wtorek", Wednesday: "Środa", Thursday: "Czwartek", Friday: "Piątek", Saturday: "Sobota", Sunday: "Niedziela" },
+            meals: { "Сніданок": "Śniadanie", "Обід": "Obiad", "Вечеря": "Kolacja" },
+            short_meals: { "Сніданок": "Ś", "Обід": "O", "Вечеря": "K" },
+            recipe_button: "Przepis", nutrition_title: "Wartość odżywcza", calories: "Kalorie", protein: "Białko", fats: "Tłuszcze", carbs: "Węglowodany",
+            nutrition_error: "Nie udało się obliczyć wartości odżywczych.", variation_title: "Wariacje przepisu", variation_error: "Nie udało się wygenerować wariacji.",
+            recipe_error: "Błąd przetwarzania przepisu.", ingredients_title: "Składniki", instructions_title: "Instrukcje",
+            calc_nutrition: "Oblicz wartość odżywczą", vary_recipe: "Zmień przepis"
+        },
+        de: {
+            main_title: "Was gibt es zum Abendessen?", main_subtitle: "Geben Sie die Produkte ein, die Sie haben, und die KI schlägt die besten Rezepte vor.", main_button: "Zutaten eingeben",
+            tab_recipes: "Rezepte", tab_plan: "Plan", tab_shopping: "Einkauf",
+            find_recipes_title: "Rezepte finden", find_recipes_label: "Zutaten durch Kommas getrennt eingeben:", find_recipes_placeholder: "z.B. Huhn, Kartoffeln, Zwiebeln, Karotten",
+            strict_mode_title: "Strenger Modus", strict_mode_desc: "Nur die angegebenen Produkte verwenden.", find_recipes_button: "✨ Rezepte finden",
+            plan_title: "Wochenplan", plan_prefs: "Ihre Präferenzen:", plan_placeholder: "z.B. vegan, glutenfrei, zum Abnehmen",
+            plan_generate_button: "✨ Plan erstellen", plan_prompt: 'Geben Sie Ihre Präferenzen ein und klicken Sie auf "Erstellen".',
+            plan_create_shopping_list: "🛒 Einkaufsliste erstellen", shopping_title: "Einkaufsliste",
+            shopping_placeholder: "Die Einkaufsliste ist leer. Erstellen Sie sie aus dem Speiseplan.", account_title: "Konto",
+            account_my_account: "Mein Konto", account_settings: "Einstellungen", account_logout: "Ausloggen",
+            days: { Monday: "Montag", Tuesday: "Dienstag", Wednesday: "Mittwoch", Thursday: "Donnerstag", Friday: "Freitag", Saturday: "Samstag", Sunday: "Sonntag" },
+            meals: { "Сніданок": "Frühstück", "Обід": "Mittagessen", "Вечеря": "Abendessen" },
+            short_meals: { "Сніданок": "F", "Обід": "M", "Вечеря": "A" },
+            recipe_button: "Rezept", nutrition_title: "Nährwert", calories: "Kalorien", protein: "Protein", fats: "Fette", carbs: "Kohlenhydrate",
+            nutrition_error: "Nährwert konnte nicht berechnet werden.", variation_title: "Rezeptvarianten", variation_error: "Variationen konnten nicht generiert werden.",
+            recipe_error: "Fehler beim Verarbeiten des Rezepts.", ingredients_title: "Zutaten", instructions_title: "Anweisungen",
+            calc_nutrition: "Nährwert berechnen", vary_recipe: "Rezept variieren"
+        }
+    };
+    
+    function setLanguage(lang) {
+        currentLanguage = lang;
+        document.documentElement.lang = lang;
+        document.querySelectorAll('[data-translate-key]').forEach(el => {
+            const key = el.dataset.translateKey;
+            if (translations[lang] && translations[lang][key]) {
+                el.innerText = translations[lang][key];
+            }
+        });
+        document.querySelectorAll('[data-translate-key-placeholder]').forEach(el => {
+            const key = el.dataset.translateKeyPlaceholder;
+            if (translations[lang] && translations[lang][key]) {
+                el.placeholder = translations[lang][key];
+            }
+        });
+        // Re-render dynamic content if it exists
+        if(Object.keys(currentMealPlanAndShoppingList).length > 0) {
+            renderMealPlan();
+            renderShoppingListOverview();
+        }
+    }
+
+    // --- Utility Functions ---
+    function cleanAndParseJson(text) {
+        if (!text) return null;
+        const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```|({[\s\S]*})|(\[[\s\S]*])/);
+        if (!jsonMatch) { console.error("No JSON block found in the response.", text); return null; }
+        const jsonString = jsonMatch[1] || jsonMatch[2] || jsonMatch[3];
+        try { return JSON.parse(jsonString); } 
+        catch (e) { console.error("Failed to parse JSON:", e, { originalText: text, extractedString: jsonString }); return null; }
+    }
+
+    async function callApi(url, payload, signal) {
+        try {
+            const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal });
+            if (!response.ok) {
+                const errorBody = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, body: ${errorBody}`);
+            }
+            return await response.json();
+        } catch (error) {
+            if (error.name !== 'AbortError') { console.error("API Call Error:", error); }
+            return null;
+        }
+    }
+
+    async function callGemini(prompt, responseSchema = null, signal) {
+        const payload = {
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: responseSchema ? { responseMimeType: "application/json", responseSchema: responseSchema } : {}
+        };
+        const result = await callApi(TEXT_API_URL, payload, signal);
+        return result?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    }
+
+    async function callImagen(prompt, signal) {
+        const payload = { instances: [{ prompt }], parameters: { "sampleCount": 1 } };
+        const result = await callApi(IMAGE_API_URL, payload, signal);
+        return result?.predictions?.[0]?.bytesBase64Encoded ? `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}` : null;
+    }
+    
+    async function typewriterEffect(container, text, abortSignal, scrollContainer) {
+        return new Promise(resolve => {
+            if (!text) { resolve(); return; }
+            let charIndex = 0; let currentText = ''; container.innerHTML = '';
+            let userIntervened = false;
+            
+            const userInteractionHandler = () => {
+                userIntervened = true;
+                if (scrollContainer) {
+                    scrollContainer.removeEventListener('wheel', userInteractionHandler);
+                    scrollContainer.removeEventListener('touchmove', userInteractionHandler);
+                }
+            };
+    
+            if (scrollContainer) {
+                scrollContainer.addEventListener('wheel', userInteractionHandler, { passive: true, once: true });
+                scrollContainer.addEventListener('touchmove', userInteractionHandler, { passive: true, once: true });
+            }
+    
+            const type = () => {
+                if (abortSignal?.aborted) {
+                    container.innerHTML = text.replace(/\n/g, '<br>');
+                    if (scrollContainer) {
+                        scrollContainer.removeEventListener('wheel', userInteractionHandler);
+                        scrollContainer.removeEventListener('touchmove', userInteractionHandler);
+                    }
+                    resolve();
+                    return;
+                }
+    
+                if (charIndex < text.length) {
+                    currentText += text[charIndex];
+                    const lastWordMatch = currentText.match(/\S+$/);
+                    const lastWord = lastWordMatch ? lastWordMatch[0] : '';
+                    const textBeforeLastWord = currentText.substring(0, currentText.length - lastWord.length);
+                    container.innerHTML = textBeforeLastWord.replace(/\n/g, '<br>') + `<span class="rainbow-text">${lastWord}</span>`;
+                    
+                    if (!userIntervened && scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight) {
+                       scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' });
+                    }
+                    
+                    charIndex++;
+                    setTimeout(type, 15);
+                } else {
+                    container.innerHTML = text.replace(/\n/g, '<br>');
+                    if (container.querySelector('.rainbow-text')) {
+                        container.querySelector('.rainbow-text').classList.remove('rainbow-text');
+                    }
+                    if (scrollContainer) {
+                        scrollContainer.removeEventListener('wheel', userInteractionHandler);
+                        scrollContainer.removeEventListener('touchmove', userInteractionHandler);
+                    }
+                    resolve();
+                }
+            };
+            type();
+        });
+    }
+
+    function showSpinner(container) { container.innerHTML = '<div class="flex justify-center items-center p-8"><div class="spinner"></div></div>'; }
+    function openModal(modal, content) { modal.classList.add('active'); requestAnimationFrame(() => content.classList.add('active')); }
+    function closeModal(modal, content) { content.classList.remove('active'); setTimeout(() => modal.classList.remove('active'), 300); }
+    function abortTyping() { if (typingAbortController) typingAbortController.abort(); }
+
+    // --- Event Listeners Setup ---
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            abortTyping();
+            const tabId = button.dataset.tab;
+            Object.values(tabs).forEach(tab => tab.classList.add('hidden'));
+            tabs[tabId].classList.remove('hidden');
+            tabButtons.forEach(btn => btn.classList.replace('text-blue-500', 'text-gray-500'));
+            button.classList.replace('text-gray-500', 'text-blue-500');
+        });
+    });
+
+    scanButton.addEventListener('click', () => openModal(modalIngredients, modalIngredientsContent));
+    const closeIngredientsHandler = () => { abortTyping(); closeModal(modalIngredients, modalIngredientsContent); };
+    closeIngredientsModalBtn.addEventListener('click', closeIngredientsHandler);
+    closeModalIngredientsOverlay.addEventListener('click', closeIngredientsHandler);
+    
+    profileIcon.addEventListener('click', () => openModal(modalAccount, modalAccountContent));
+    document.getElementById('close-account-modal-button').addEventListener('click', () => closeModal(modalAccount, modalAccountContent));
+    document.getElementById('close-account-modal-overlay').addEventListener('click', () => closeModal(modalAccount, modalAccountContent));
+    document.getElementById('my-account-btn').addEventListener('click', () => showAccountDetails());
+    document.getElementById('settings-btn').addEventListener('click', () => showSettings());
+    
+    const closeInfoModalOverlay = document.getElementById('close-info-modal-overlay');
+    if (closeInfoModalOverlay) {
+        closeInfoModalOverlay.addEventListener('click', () => {
+            abortTyping();
+            closeModal(modalInfo, modalInfoContent)
+        });
+    }
+
+
+    // --- Core Logic ---
+
+    findRecipesBtn.addEventListener('click', async () => {
+        const ingredients = ingredientsInput.value;
+        if (!ingredients.trim()) { alert("Будь ласка, введіть інгредієнти."); return; }
+        showSpinner(recipesResultContainer);
+        
+        const isStrictMode = strictModeToggle.checked;
+        const strictnessPrompt = isStrictMode ? "Використовуй виключно надані інгредієнти." : "Можна додати 1-2 простих інгредієнти (спеції, олія, цибуля), якщо це покращить страву.";
+        const langMap = { uk: 'українською', en: 'англійською', pl: 'польською', de: 'німецькою' };
+        const prompt = `Надай 3 ідеї рецептів ${langMap[currentLanguage]} мовою з цих інгредієнтів: ${ingredients}. ${strictnessPrompt} Відповідь дай у вигляді JSON-масиву з полями "name" та "description". Відповідь - лише валідний JSON.`;
+        const schema = { type: "ARRAY", items: { type: "OBJECT", properties: { name: { type: "STRING" }, description: { type: "STRING" } }, required: ["name", "description"] } };
+
+        abortTyping();
+        typingAbortController = new AbortController();
+        const signal = typingAbortController.signal;
+
+        const resultText = await callGemini(prompt, schema, signal);
+        recipesResultContainer.innerHTML = '';
+        if (resultText && !signal.aborted) {
+            try {
+                const recipes = cleanAndParseJson(resultText);
+                if (!recipes) throw new Error("Failed to parse recipes JSON");
+
+                for (const [i, recipe] of recipes.entries()) {
+                    if (signal.aborted) break;
+                    const item = document.createElement('div');
+                    item.className = 'p-4 bg-white rounded-xl shadow-sm flex items-center space-x-4 cursor-pointer hover:shadow-md transition-shadow fade-in-item';
+                    item.style.opacity = '0';
+                    item.style.animationDelay = `${i * 100}ms`;
+                    item.innerHTML = `
+                        <div id="recipe-img-${i}" class="w-16 h-16 bg-gray-200 rounded-lg flex-shrink-0 flex items-center justify-center">
+                            <div class="spinner !w-6 !h-6"></div>
+                        </div>
+                        <div class="flex-grow overflow-hidden">
+                            <div class="font-semibold text-blue-600 truncate">${recipe.name}</div>
+                            <p class="text-sm text-gray-600">${recipe.description}</p>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-gray-400"></i>`;
+                    item.addEventListener('click', () => showDetailedRecipe(recipe.name, ingredients, isStrictMode));
+                    recipesResultContainer.appendChild(item);
+
+                    const imagePrompt = `icon for ${recipe.name}, minimalist food icon, simple vector art, clean background`;
+                    const imageUrl = await callImagen(imagePrompt, signal);
+                    const imageContainer = document.getElementById(`recipe-img-${i}`);
+                    if (imageUrl && !signal.aborted && imageContainer) {
+                        imageContainer.innerHTML = `<img src="${imageUrl}" class="w-full h-full object-cover rounded-lg" alt="Іконка ${recipe.name}">`;
+                    } else if (imageContainer) {
+                        imageContainer.innerHTML = `<i class="fa-solid fa-utensils text-gray-400 text-2xl"></i>`;
+                    }
+                }
+            } catch (e) {
+                recipesResultContainer.innerHTML = `<p class="text-red-500 p-4">Сталася помилка обробки відповіді.</p>`;
+            }
+        } else if (!signal.aborted) {
+            recipesResultContainer.innerHTML = '<p class="text-red-500 p-4">Не вдалося отримати рецепти.</p>';
+        }
+    });
+
+    async function showDetailedRecipe(recipeName, baseIngredients = '', isStrict = false) {
+        openModal(modalDetail, modalDetailContent);
+        showSpinner(modalDetailContent);
+        
+        abortTyping();
+        typingAbortController = new AbortController();
+        const signal = typingAbortController.signal;
+
+        const langMap = { uk: 'українською', en: 'англійською', pl: 'польською', de: 'німецькою' };
+        const strictnessPrompt = isStrict ? `Рецепт має містити виключно інгредієнти з цього списку: ${baseIngredients}.` : '';
+        const prompt = `Надай детальний покроковий рецепт для страви: "${recipeName}" ${langMap[currentLanguage]} мовою. ${strictnessPrompt} Відповідь має бути виключно у форматі JSON. Не додавай жодних пояснень. JSON повинен мати структуру: {"title": "Назва страви", "ingredients": ["Інгредієнт 1 - кількість", ...], "instructions": ["Крок 1...", ...]}.`;
+        const schema = { type: "OBJECT", properties: { title: { type: "STRING" }, ingredients: { type: "ARRAY", items: { type: "STRING" } }, instructions: { type: "ARRAY", items: { type: "STRING" } } }, required: ["title", "ingredients", "instructions"] };
+        
+        const resultText = await callGemini(prompt, schema, signal);
+        
+        if (resultText && !signal.aborted) {
+            try {
+                const recipe = cleanAndParseJson(resultText);
+                if (!recipe) throw new Error("Failed to parse recipe JSON");
+                
+                modalDetailContent.innerHTML = `
+                    <div id="recipe-detail-header" class="hiding-header flex justify-between items-center mb-6 pb-4 border-b border-gray-200 sticky top-0 bg-gray-50/95 backdrop-blur-sm -mx-6 px-6 pt-6 -mt-6 z-10">
+                        <h2 class="text-2xl font-bold text-gray-800">${recipe.title || recipeName}</h2>
+                        <button id="close-detail-modal-btn" class="text-gray-500 hover:text-gray-800"><i class="fa-solid fa-xmark text-2xl"></i></button>
+                    </div>
+                    <div id="recipe-image-container" class="my-4 h-56 bg-gray-200 rounded-xl flex items-center justify-center animate-pulse"><div class="spinner"></div></div>
+                    <div class="grid grid-cols-2 gap-3 my-4">
+                        <button id="calculate-nutrition-btn" class="bg-indigo-100 text-indigo-700 text-sm font-semibold p-3 rounded-lg hover:bg-indigo-200 transition-colors flex items-center justify-center space-x-2"><i class="fa-solid fa-calculator"></i> <span data-translate-key="calc_nutrition">Розрахувати КБЖВ</span></button>
+                        <button id="vary-recipe-btn" class="bg-purple-100 text-purple-700 text-sm font-semibold p-3 rounded-lg hover:bg-purple-200 transition-colors flex items-center justify-center space-x-2"><i class="fa-solid fa-wand-magic-sparkles"></i> <span data-translate-key="vary_recipe">Урізноманітнити</span></button>
+                    </div>
+                    <div id="detail-content-wrapper" class="space-y-6 pt-4">
+                        <div><h3 class="text-xl font-semibold mb-3 text-gray-700" data-translate-key="ingredients_title">Інгредієнти:</h3><div id="ingredients-list" class="space-y-3"></div></div>
+                        <div><h3 class="text-xl font-semibold mt-6 mb-3 text-gray-700" data-translate-key="instructions_title">Інструкції:</h3><div id="instructions-list" class="space-y-4"></div></div>
+                    </div>`;
+                
+                setLanguage(currentLanguage);
+                const header = modalDetailContent.querySelector('#recipe-detail-header');
+                
+                modalDetailContent.addEventListener('scroll', () => {
+                    let scrollTop = modalDetailContent.scrollTop;
+                    header.classList.toggle('hidden-header', scrollTop > lastScrollTop && scrollTop > 50);
+                    lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
+                }, { passive: true });
+                
+                document.getElementById('close-detail-modal-btn').addEventListener('click', () => { abortTyping(); closeModal(modalDetail, modalDetailContent); });
+                document.getElementById('calculate-nutrition-btn').addEventListener('click', () => calculateNutrition(recipe));
+                document.getElementById('vary-recipe-btn').addEventListener('click', () => varyRecipe(recipe));
+                
+                const ingredientsListEl = document.getElementById('ingredients-list');
+                const instructionsListEl = document.getElementById('instructions-list');
+                const imageContainer = document.getElementById('recipe-image-container');
+                const imagePrompt = `${recipe.title}, professional food photography, delicious, appetizing, high detail, on a clean background`;
+                const imageUrlPromise = callImagen(imagePrompt, signal);
+
+                const animateContent = async () => {
+                    for (const item of (recipe.ingredients || [])) {
+                         if (signal.aborted) return;
+                         const el = document.createElement('div');
+                         el.className = 'bg-white p-3 rounded-lg shadow-sm flex items-center space-x-3';
+                         el.innerHTML = `<i class="fa-solid fa-check text-blue-500"></i><p></p>`;
+                         ingredientsListEl.appendChild(el);
+                         await typewriterEffect(el.querySelector('p'), item, signal, modalDetailContent);
+                    }
+                    for (let i = 0; i < (recipe.instructions || []).length; i++) {
+                         if (signal.aborted) return;
+                         const item = recipe.instructions[i];
+                         const el = document.createElement('div');
+                         el.className = 'bg-white p-4 rounded-lg shadow-sm flex items-start space-x-4';
+                         instructionsListEl.appendChild(el);
+                         const numberEl = document.createElement('div');
+                         numberEl.className = 'flex-shrink-0 bg-blue-500 text-white rounded-full h-8 w-8 flex items-center justify-center font-bold text-base';
+                         numberEl.textContent = i + 1;
+                         const textEl = document.createElement('p');
+                         textEl.className = 'text-gray-700 leading-relaxed';
+                         el.appendChild(numberEl);
+                         el.appendChild(textEl);
+                         await typewriterEffect(textEl, item, signal, modalDetailContent);
+                    }
+                };
+                animateContent();
+                
+                const imageUrl = await imageUrlPromise;
+                if (imageUrl && !signal.aborted) {
+                    imageContainer.innerHTML = `<img src="${imageUrl}" class="w-full h-full object-cover rounded-xl" alt="Згенероване зображення страви">`;
+                    imageContainer.classList.remove('animate-pulse');
+                } else if (!signal.aborted) {
+                    imageContainer.innerHTML = '<p class="text-sm text-gray-500">Не вдалося завантажити зображення</p>';
+                    imageContainer.classList.remove('animate-pulse');
+                }
+
+            } catch(e) { modalDetailContent.innerHTML = `<div class="p-4 text-center"><p class="text-red-500">Помилка обробки рецепта.</p><button id="close-detail-modal-btn" class="mt-4 bg-gray-200 px-4 py-2 rounded-lg">Назад</button></div>`; document.getElementById('close-detail-modal-btn').addEventListener('click', () => closeModal(modalDetail, modalDetailContent)); console.error(e)}
+        } else if (!signal.aborted) { modalDetailContent.innerHTML = `<div class="p-4 text-center"><p class="text-red-500">Не вдалося завантажити рецепт.</p><button id="close-detail-modal-btn" class="mt-4 bg-gray-200 px-4 py-2 rounded-lg">Назад</button></div>`; document.getElementById('close-detail-modal-btn').addEventListener('click', () => closeModal(modalDetail, modalDetailContent));}
+    }
+    
+    // --- Meal Plan Logic --- 
+    generatePlanBtn.addEventListener('click', async () => {
+        showSpinner(mealPlanContent);
+        createShoppingListBtnContainer.classList.add('hidden');
+        const userPrefs = dietPrefsInput.value.trim();
+        const langMap = { uk: 'українською', en: 'англійською', pl: 'польською', de: 'німецькою' };
+        const prompt = `Склади повноцінний план харчування на 7 днів (з Понеділка по Неділю), що включає сніданок, обід та вечерю на КОЖЕН день. Мова плану: ${langMap[currentLanguage]}. Врахуй наступні побажання: ${userPrefs || 'збалансоване харчування'}. Для кожної страви одразу надай список інгредієнтів з грамовками.
+        
+        Відповідь дай виключно у форматі JSON об'єкта. Ключами є дні тижня англійською ("Monday", "Tuesday", etc.). Для кожного дня значенням є об'єкт з ключем "plan" (об'єкт з назвами страв) та ключем "shopping" (об'єкт зі списками продуктів для кожної страви).
+        
+        Приклад для одного дня: 
+        "Monday": {
+            "plan": { "Сніданок": "Вівсянка з ягодами", "Обід": "Курячий суп", "Вечеря": "Салат Цезар" },
+            "shopping": {
+                "Сніданок": ["Вівсянка - 50г", "Молоко - 150мл", "Свіжі ягоди - 50г"],
+                "Обід": ["Куряче філе - 200г", "Картопля - 2шт", "Морква - 1шт"],
+                "Вечеря": ["Куряче філе - 150г", "Листя салату - 50г", "Сухарики - 30г"]
+            }
+        }
+        
+        ЗАПОВНИ АБСОЛЮТНО ВСІ ПОЛЯ ДЛЯ ВСІХ 7 ДНІВ. Відповідь має бути лише валідним JSON.`;
+        
+        const mealDetailSchema = { type: "OBJECT", properties: { mealName: { type: "STRING" }, ingredients: { type: "ARRAY", items: { type: "STRING" } } }, required: ["mealName", "ingredients"] };
+        const daySchema = { type: "OBJECT", properties: { plan: {type: "OBJECT", properties: { "Сніданок": { type: "STRING" }, "Обід": { type: "STRING" }, "Вечеря": { type: "STRING" } }}, shopping: {type: "OBJECT", properties: { "Сніданок": { type: "ARRAY", items: { type: "STRING" } }, "Обід": { type: "ARRAY", items: { type: "STRING" } }, "Вечеря": { type: "ARRAY", items: { type: "STRING" } } }} }, required: ["plan", "shopping"]};
+        const schema = { type: "OBJECT", properties: { "Monday": daySchema, "Tuesday": daySchema, "Wednesday": daySchema, "Thursday": daySchema, "Friday": daySchema, "Saturday": daySchema, "Sunday": daySchema }, required: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] };
+        
+        abortTyping();
+        const signal = new AbortController().signal;
+
+        const resultText = await callGemini(prompt, schema, signal);
+        if (resultText && !signal.aborted) {
+            try {
+                const plan = cleanAndParseJson(resultText);
+                if (!plan) throw new Error("Failed to parse meal plan JSON");
+                currentMealPlanAndShoppingList = plan;
+                renderMealPlan();
+                createShoppingListBtnContainer.classList.remove('hidden');
+
+            } catch (e) { mealPlanContent.innerHTML = `<p class="text-red-500 p-4">Не вдалося обробити план харчування. Спробуйте змінити запит.</p>`; console.error(e); }
+        } else if (!signal.aborted) { mealPlanContent.innerHTML = '<p class="text-red-500 p-4">Помилка при генерації плану. Спробуйте ще раз.</p>'; }
+    });
+
+    function renderMealPlan() {
+        if (!Object.keys(currentMealPlanAndShoppingList).length) return;
+        mealPlanContent.innerHTML = '';
+        const dayKeys = Object.keys(translations.uk.days);
+
+        for (const dayKey of dayKeys) {
+            const dayData = currentMealPlanAndShoppingList[dayKey]?.plan;
+            if (!dayData) continue;
+            const itemEl = document.createElement('div');
+            itemEl.className = 'bg-white p-4 rounded-xl shadow-sm fade-in-item';
+            itemEl.style.opacity = '0';
+            itemEl.style.animationDelay = `${dayKeys.indexOf(dayKey) * 100}ms`;
+            
+            const translatedDay = translations[currentLanguage].days[dayKey];
+            const translatedBreakfast = translations[currentLanguage].meals["Сніданок"];
+            const translatedLunch = translations[currentLanguage].meals["Обід"];
+            const translatedDinner = translations[currentLanguage].meals["Вечеря"];
+
+            itemEl.innerHTML = `
+                <div class="font-bold text-lg text-blue-600">${translatedDay}</div>
+                <div class="text-sm text-gray-500 mt-2 space-y-1">
+                    <p><strong>${translatedBreakfast}:</strong> ${dayData["Сніданок"] || 'Не вказано'}</p>
+                    <p><strong>${translatedLunch}:</strong> ${dayData["Обід"] || 'Не вказано'}</p>
+                    <p><strong>${translatedDinner}:</strong> ${dayData["Вечеря"] || 'Не вказано'}</p>
+                </div>`;
+            mealPlanContent.appendChild(itemEl);
+        }
+    }
+    
+    // --- Shopping List Logic ---
+    createShoppingListBtn.addEventListener('click', () => {
+        if (!Object.keys(currentMealPlanAndShoppingList).length) return;
+        tabButtons.forEach(b => { if(b.dataset.tab === 'shopping') b.click() });
+        renderShoppingListOverview();
+    });
+
+    function renderShoppingListOverview() {
+        shoppingListContainer.innerHTML = '';
+        shoppingListPlaceholder.classList.add('hidden');
+        
+        const dayKeys = Object.keys(translations[currentLanguage].days);
+        const daysWithData = dayKeys.filter(dayKey => currentMealPlanAndShoppingList[dayKey] && currentMealPlanAndShoppingList[dayKey].plan);
+
+        if (daysWithData.length === 0) {
+            shoppingListPlaceholder.classList.remove('hidden');
+            return;
+        }
+
+        daysWithData.forEach((dayKey, i) => {
+            const dayPlan = currentMealPlanAndShoppingList[dayKey].plan;
+            const card = document.createElement('div');
+            card.className = 'bg-white p-5 rounded-xl shadow-sm cursor-pointer hover:shadow-md transition-shadow fade-in-item flex justify-between items-center';
+            card.style.opacity = '0';
+            card.style.animationDelay = `${i * 100}ms`;
+            
+            const translatedDay = translations[currentLanguage].days[dayKey];
+            const shortB = translations[currentLanguage].short_meals["Сніданок"];
+            const shortL = translations[currentLanguage].short_meals["Обід"];
+            const shortD = translations[currentLanguage].short_meals["Вечеря"];
+
+            const mealSummary = `
+                <p class="truncate"><strong>${shortB}:</strong> ${dayPlan['Сніданок']}</p>
+                <p class="truncate"><strong>${shortL}:</strong> ${dayPlan['Обід']}</p>
+                <p class="truncate"><strong>${shortD}:</strong> ${dayPlan['Вечеря']}</p>`;
+
+            card.innerHTML = `
+                <div class="flex-grow overflow-hidden pr-2">
+                    <div class="font-bold text-lg text-green-600">${translatedDay}</div>
+                    <div class="text-sm text-gray-500 mt-1 space-y-1">${mealSummary}</div>
+                </div>
+                <i class="fa-solid fa-chevron-right text-gray-400 ml-4 flex-shrink-0"></i>`;
+            
+            card.addEventListener('click', () => showShoppingDetailForDay(dayKey));
+            shoppingListContainer.appendChild(card);
+        });
+    }
+
+    function showShoppingDetailForDay(dayKey) {
+        openModal(modalDetail, modalDetailContent); 
+
+        const renderShoppingListForDay = () => {
+            const dayData = currentMealPlanAndShoppingList[dayKey];
+            const translatedDay = translations[currentLanguage].days[dayKey];
+            if (!dayData) {
+                modalDetailContent.innerHTML = `<p class="text-red-500 p-4">Помилка: дані для цього дня відсутні.</p>`;
+                return;
+            }
+
+            const createMealSectionHTML = (mealTypeKey, color) => {
+                const mealName = dayData.plan[mealTypeKey];
+                const shoppingInfo = dayData.shopping[mealTypeKey] || [];
+                if (!mealName) return '';
+                
+                const products = shoppingInfo.map((product, index) => ({
+                    name: typeof product === 'string' ? product : product.name,
+                    bought: currentMealPlanAndShoppingList[dayKey].shopping[mealTypeKey][index]?.bought || false,
+                }));
+                currentMealPlanAndShoppingList[dayKey].shopping[mealTypeKey] = products;
+
+                const ingredientsForRecipe = products.map(p => p.name).join(', ');
+                
+                const productListHTML = products.length > 0
+                    ? `<div class="space-y-2 mt-2">${products.map((product, index) => `
+                        <div data-meal="${mealTypeKey}" data-index="${index}" class="shopping-item-row bg-gray-50 p-3 rounded-lg flex items-center space-x-3 cursor-pointer hover:bg-gray-200 transition-colors">
+                            <i class="fa-regular ${product.bought ? `fa-check-square text-green-500` : 'fa-square text-gray-400'} text-xl"></i>
+                            <p class="flex-grow ${product.bought ? 'line-through text-gray-400' : 'text-gray-700'} text-sm">${product.name}</p>
+                        </div>`).join('')}</div>`
+                    : `<p class="text-sm text-gray-500 italic ml-4">${translations[currentLanguage].shopping_placeholder || 'Продукти не вказані.'}</p>`;
+                
+                const translatedMealType = translations[currentLanguage].meals[mealTypeKey];
+
+                return `
+                    <div class="mt-4 bg-white p-4 rounded-xl shadow-sm">
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="font-semibold text-md text-gray-800">${translatedMealType}: <span class="font-bold text-gray-600">${mealName}</span></h4>
+                            <button class="recipe-btn text-xs bg-gray-200 text-gray-700 font-semibold py-1 px-3 rounded-full hover:bg-gray-300 transition" data-meal-name="${mealName.replace(/'/g, "\\'")}" data-ingredients="${ingredientsForRecipe.replace(/'/g, "\\'").replace(/"/g, '&quot;')}">${translations[currentLanguage].recipe_button}</button>
+                        </div>
+                        ${productListHTML}
+                    </div>`;
+            };
+            
+            modalDetailContent.innerHTML = `
+                <div class="hiding-header flex justify-between items-center mb-6 pb-4 border-b border-gray-200 sticky top-0 bg-gray-50/95 backdrop-blur-sm -mx-6 px-6 pt-6 -mt-6 z-10">
+                    <h2 class="text-2xl font-bold text-gray-800">Покупки на ${translatedDay}</h2>
+                    <button id="close-shopping-detail-btn" class="text-gray-500 hover:text-gray-800"><i class="fa-solid fa-xmark text-2xl"></i></button>
+                </div>
+                <div class="space-y-4 pt-4" id="daily-shopping-items-container">
+                    ${createMealSectionHTML('Сніданок')}
+                    ${createMealSectionHTML('Обід')}
+                    ${createMealSectionHTML('Вечеря')}
+                </div>`;
+            
+            document.getElementById('close-shopping-detail-btn').addEventListener('click', () => {
+                 closeModal(modalDetail, modalDetailContent);
+            });
+            
+            modalDetailContent.querySelectorAll('.shopping-item-row').forEach(row => {
+                row.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const mealType = row.dataset.meal;
+                    const index = parseInt(row.dataset.index, 10);
+                    const product = currentMealPlanAndShoppingList[dayKey].shopping[mealType][index];
+                    product.bought = !product.bought;
+                    renderShoppingListForDay();
+                });
+            });
+
+             modalDetailContent.querySelectorAll('.recipe-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    const mealName = button.dataset.mealName;
+                    const ingredients = button.dataset.ingredients;
+                    showDetailedRecipe(mealName, ingredients, true);
+                });
+            });
+        };
+        
+        renderShoppingListForDay();
+    }
+    
+    // --- New Features Logic ---
+    async function calculateNutrition(recipe) {
+        openModal(modalInfo, modalInfoContent);
+        showSpinner(modalInfoContent);
+        
+        const langMap = { uk: 'українською', en: 'англійською', pl: 'польською', de: 'німецькою' };
+        const prompt = `Розрахуй приблизну калорійність, білки, жири та вуглеводи ${langMap[currentLanguage]} мовою для рецепту "${recipe.title}" з такими інгредієнтами: ${recipe.ingredients.join(', ')}. Надай відповідь у форматі JSON: {"calories": "...", "protein": "...", "fats": "...", "carbs": "..."}. Значення мають бути рядками, наприклад "450 ккал" або "15 г".`;
+        const schema = { type: "OBJECT", properties: { calories: { type: "STRING" }, protein: { type: "STRING" }, fats: { type: "STRING" }, carbs: { type: "STRING" } }, required: ["calories", "protein", "fats", "carbs"] };
+        
+        abortTyping();
+        const signal = new AbortController().signal;
+        const resultText = await callGemini(prompt, schema, signal);
+        
+        if (resultText && !signal.aborted) {
+            try {
+                const nutrition = cleanAndParseJson(resultText);
+                if (!nutrition) throw new Error("Failed to parse nutrition JSON.");
+                modalInfoContent.innerHTML = `
+                    <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold text-gray-800" data-translate-key="nutrition_title">Поживна цінність</h2><button id="close-info-modal-button" class="text-gray-500 hover:text-gray-800"><i class="fa-solid fa-xmark text-2xl"></i></button></div>
+                    <div class="grid grid-cols-4 gap-2 text-center">
+                        <div class="bg-blue-100 p-3 rounded-lg flex flex-col justify-center items-center"><div class="text-lg font-bold text-blue-800 break-all">${nutrition.calories || "N/A"}</div><div class="text-xs text-blue-600 mt-1" data-translate-key="calories">Калорії</div></div>
+                        <div class="bg-green-100 p-3 rounded-lg flex flex-col justify-center items-center"><div class="text-lg font-bold text-green-800 break-all">${nutrition.protein || "N/A"}</div><div class="text-sm text-green-600 mt-1" data-translate-key="protein">Білки</div></div>
+                        <div class="bg-yellow-100 p-3 rounded-lg flex flex-col justify-center items-center"><div class="text-lg font-bold text-yellow-800 break-all">${nutrition.fats || "N/A"}</div><div class="text-sm text-yellow-600 mt-1" data-translate-key="fats">Жири</div></div>
+                        <div class="bg-red-100 p-3 rounded-lg flex flex-col justify-center items-center"><div class="text-lg font-bold text-red-800 break-all">${nutrition.carbs || "N/A"}</div><div class="text-sm text-red-600 mt-1" data-translate-key="carbs">Вуглеводи</div></div>
+                    </div>`;
+                setLanguage(currentLanguage); // Translate new static elements
+                document.getElementById('close-info-modal-button').addEventListener('click', () => closeModal(modalInfo, modalInfoContent));
+            } catch (e) {
+                modalInfoContent.innerHTML = `<p class="text-red-500 p-4" data-translate-key="nutrition_error">Не вдалося розрахувати КБЖВ.</p>`;
+                 setLanguage(currentLanguage);
+            }
+        } else if (!signal.aborted) {
+             modalInfoContent.innerHTML = `<p class="text-red-500 p-4">Помилка. Спробуйте ще раз.</p>`;
+        }
+    }
+    
+    async function varyRecipe(recipe) {
+        openModal(modalInfo, modalInfoContent);
+        showSpinner(modalInfoContent);
+
+        const langMap = { uk: 'українською', en: 'англійською', pl: 'польською', de: 'німецькою' };
+        const prompt = `Запропонуй 3 альтернативні версії для рецепту "${recipe.title}". Наприклад: гостра версія, вегетаріанська, або для дітей. Кожну варіацію опиши одним-двома реченнями. Відповідь надай ${langMap[currentLanguage]} мовою.`;
+
+        abortTyping();
+        typingAbortController = new AbortController();
+        const signal = typingAbortController.signal;
+
+        const resultText = await callGemini(prompt, null, signal);
+        
+        if(resultText && !signal.aborted) {
+            modalInfoContent.innerHTML = `
+                <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold text-gray-800" data-translate-key="variation_title">Варіації рецепту</h2><button id="close-info-modal-button" class="text-gray-500"><i class="fa-solid fa-xmark text-2xl"></i></button></div>
+                <div id="variation-content" class="text-gray-700 space-y-2"></div>
+            `;
+             setLanguage(currentLanguage);
+            document.getElementById('close-info-modal-button').addEventListener('click', () => { abortTyping(); closeModal(modalInfo, modalInfoContent); });
+            await typewriterEffect(document.getElementById('variation-content'), resultText, signal, modalInfoContent);
+        } else if (!signal.aborted) {
+            modalInfoContent.innerHTML = `<p class="text-red-500 p-4" data-translate-key="variation_error">Не вдалося згенерувати варіації.</p>`;
+             setLanguage(currentLanguage);
+        }
+    }
+    
+    function showAccountDetails() {
+        closeModal(modalAccount, modalAccountContent); 
+        openModal(modalDetail, modalDetailContent);   
+        modalDetailContent.innerHTML = `
+            <div class="flex justify-between items-center mb-6 pb-4 border-b">
+                <h2 data-translate-key="account_my_account" class="text-2xl font-bold text-gray-800">Мій акаунт</h2>
+                <button id="close-detail-modal-btn" class="text-gray-500 hover:text-gray-800"><i class="fa-solid fa-xmark text-2xl"></i></button>
+            </div>
+            <div class="space-y-4">
+                 <p>Тут буде інформація про акаунт...</p>
+            </div>`;
+        document.getElementById('close-detail-modal-btn').addEventListener('click', () => closeModal(modalDetail, modalDetailContent));
+    }
+
+    function showSettings() {
+        closeModal(modalAccount, modalAccountContent);
+        openModal(modalDetail, modalDetailContent);
+        
+        const languages = { uk: 'Українська', en: 'English', pl: 'Polski', de: 'Deutsch' };
+        
+        const languageButtonsHTML = Object.entries(languages).map(([code, name]) => {
+            const isSelected = currentLanguage === code;
+            return `<button data-lang="${code}" class="lang-btn w-full text-left p-3 rounded-lg ${isSelected ? 'bg-blue-500 text-white font-semibold' : 'bg-gray-200 hover:bg-gray-300'} transition-colors">${name}</button>`;
+        }).join('');
+
+        modalDetailContent.innerHTML = `
+            <div class="flex justify-between items-center mb-6 pb-4 border-b">
+                <h2 data-translate-key="account_settings" class="text-2xl font-bold text-gray-800">Налаштування</h2>
+                <button id="close-detail-modal-btn" class="text-gray-500 hover:text-gray-800"><i class="fa-solid fa-xmark text-2xl"></i></button>
+            </div>
+            <div class="space-y-4">
+                <h3 class="text-lg font-semibold text-gray-700">Мова</h3>
+                <div class="space-y-2">${languageButtonsHTML}</div>
+            </div>`;
+        
+        document.getElementById('close-detail-modal-btn').addEventListener('click', () => closeModal(modalDetail, modalDetailContent));
+        
+        modalDetailContent.querySelectorAll('.lang-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                const lang = button.dataset.lang;
+                setLanguage(lang);
+                showSettings();
+            });
+        });
+    }
+    // Initial call to set default language
+    setLanguage(currentLanguage);
+
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
+</body>
+</html>
